@@ -19,17 +19,26 @@ public class Grappling : MonoBehaviour
     public float maxGrappleDistance = 30f;
     public float grappleDelayTime = 0.1f;
     public float overshootYAxis = 2f;
+    public float grapplePullForce = 55f;
+    public float grappleUpForce = 8f;
+    public float grappleMaxSpeed = 32f;
+    public float grappleReleaseDistance = 3f;
+    public float maxGrapplePullTime = 1.1f;
 
     [Header("Swing")]
     public float swingMaxDistance = 25f;
-    public float horizontalThrustForce = 120f;
-    public float forwardThrustForce = 140f;
-    public float extendCableSpeed = 1f;
+    public float horizontalThrustForce = 32f;
+    public float forwardThrustForce = 38f;
+    public float extendCableSpeed = 8f;
+    public float reelCableSpeed = 10f;
     public float swingAutoReleaseSpeed = 4f;
     public float lowMomentumGraceTime = 0.45f;
+    public float swingReleaseBoost = 4f;
 
     [Header("Swing Entry Assist")]
-    public float swingEntryPullForce = 180f;
+    public float swingEntryPullForce = 38f;
+    public float swingEntryTangentBoost = 11f;
+    public float swingEntryUpBoost = 4f;
     public float swingEntryMinPlanarSpeed = 9f;
     public float swingEntryMinHeightGain = 2.5f;
     public float swingEntryReelSpeed = 8f;
@@ -53,6 +62,7 @@ public class Grappling : MonoBehaviour
     private float lowMomentumTimer;
     private float swingEntryAssistTimer;
     private float swingStartHeight;
+    private float grapplePullTimer;
 
     private void Start()
     {
@@ -75,6 +85,9 @@ public class Grappling : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (grappling)
+            GrapplePullMovement();
+
         if (swingActive)
             SwingMovement();
     }
@@ -130,7 +143,10 @@ public class Grappling : MonoBehaviour
             return;
 
         grappling = true;
-        pm.freeze = true;
+        pm.activeGrapple = true;
+        if (pm.cam != null)
+            pm.cam.DoFov(pm.grappleFov);
+        grapplePullTimer = 0f;
 
         CancelInvoke(nameof(ExecuteGrapple));
         CancelInvoke(nameof(StopGrapple));
@@ -139,19 +155,23 @@ public class Grappling : MonoBehaviour
 
     private void ExecuteGrapple()
     {
-        pm.freeze = false;
-
-        Vector3 lowestPoint = new Vector3(transform.position.x, transform.position.y - 1f, transform.position.z);
-        float grapplePointRelativeYPos = grapplePoint.y - lowestPoint.y;
-        float highestPointOnArc = grapplePointRelativeYPos + overshootYAxis;
-
-        if (grapplePointRelativeYPos < 0f)
-            highestPointOnArc = overshootYAxis;
-
-        pm.JumpToPosition(grapplePoint, highestPointOnArc);
-
         CancelInvoke(nameof(StopGrapple));
-        Invoke(nameof(StopGrapple), 1f);
+        Invoke(nameof(StopGrapple), maxGrapplePullTime);
+    }
+
+    private void GrapplePullMovement()
+    {
+        if (grapplePoint == Vector3.zero) return;
+
+        grapplePullTimer += Time.fixedDeltaTime;
+
+        Vector3 directionToPoint = (grapplePoint - transform.position).normalized;
+        rb.AddForce(directionToPoint * grapplePullForce, ForceMode.Acceleration);
+        rb.AddForce(Vector3.up * grappleUpForce, ForceMode.Acceleration);
+        LimitVelocity(grappleMaxSpeed);
+
+        if (Vector3.Distance(transform.position, grapplePoint) <= grappleReleaseDistance || grapplePullTimer >= maxGrapplePullTime)
+            StopGrapple();
     }
 
     private void StartSwing()
@@ -167,6 +187,8 @@ public class Grappling : MonoBehaviour
 
         pm.ResetRestrictions();
         pm.swinging = true;
+        if (pm.cam != null)
+            pm.cam.DoFov(pm.grappleFov);
         swingActive = true;
         swingEntryAssistActive = true;
         lowMomentumTimer = 0f;
@@ -181,10 +203,20 @@ public class Grappling : MonoBehaviour
         float clampedDistance = Mathf.Min(distanceFromPoint, swingMaxDistance);
 
         joint.maxDistance = clampedDistance * 0.8f;
-        joint.minDistance = clampedDistance * 0.25f;
-        joint.spring = 4.5f;
-        joint.damper = 7f;
-        joint.massScale = 4.5f;
+        joint.minDistance = clampedDistance * 0.15f;
+        joint.spring = 6f;
+        joint.damper = 2.25f;
+        joint.massScale = 2.5f;
+
+        Vector3 directionToPoint = (grapplePoint - player.position).normalized;
+        Vector3 tangentDirection = Vector3.ProjectOnPlane(orientation.forward, directionToPoint).normalized;
+        if (tangentDirection.sqrMagnitude < 0.01f)
+            tangentDirection = Vector3.ProjectOnPlane(cam.forward, directionToPoint).normalized;
+
+        rb.AddForce(directionToPoint * swingEntryPullForce, ForceMode.VelocityChange);
+        rb.AddForce(tangentDirection * swingEntryTangentBoost, ForceMode.VelocityChange);
+        rb.AddForce(Vector3.up * swingEntryUpBoost, ForceMode.VelocityChange);
+        LimitVelocity(grappleMaxSpeed);
     }
 
     private void SwingMovement()
@@ -194,30 +226,33 @@ public class Grappling : MonoBehaviour
         HandleSwingEntryAssist();
 
         if (Input.GetKey(KeyCode.D))
-            rb.AddForce(orientation.right * horizontalThrustForce * Time.fixedDeltaTime, ForceMode.Acceleration);
+            rb.AddForce(orientation.right * horizontalThrustForce, ForceMode.Acceleration);
 
         if (Input.GetKey(KeyCode.A))
-            rb.AddForce(-orientation.right * horizontalThrustForce * Time.fixedDeltaTime, ForceMode.Acceleration);
+            rb.AddForce(-orientation.right * horizontalThrustForce, ForceMode.Acceleration);
 
         if (Input.GetKey(KeyCode.W))
-            rb.AddForce(orientation.forward * horizontalThrustForce * Time.fixedDeltaTime, ForceMode.Acceleration);
+            rb.AddForce(orientation.forward * horizontalThrustForce, ForceMode.Acceleration);
 
         if (Input.GetKey(KeyCode.Space))
         {
             Vector3 directionToPoint = grapplePoint - transform.position;
-            rb.AddForce(directionToPoint.normalized * forwardThrustForce * Time.fixedDeltaTime, ForceMode.Acceleration);
+            rb.AddForce(directionToPoint.normalized * forwardThrustForce, ForceMode.Acceleration);
 
             float distanceFromPoint = Vector3.Distance(transform.position, grapplePoint);
-            joint.maxDistance = distanceFromPoint * 0.8f;
+            float reeledDistance = Mathf.Max(distanceFromPoint - reelCableSpeed * Time.fixedDeltaTime, joint.minDistance);
+            joint.maxDistance = reeledDistance * 0.8f;
             joint.minDistance = distanceFromPoint * 0.25f;
         }
 
         if (Input.GetKey(KeyCode.S))
         {
-            float extendedDistance = Vector3.Distance(transform.position, grapplePoint) + extendCableSpeed;
+            float extendedDistance = Vector3.Distance(transform.position, grapplePoint) + extendCableSpeed * Time.fixedDeltaTime;
             joint.maxDistance = extendedDistance * 0.8f;
             joint.minDistance = extendedDistance * 0.25f;
         }
+
+        LimitVelocity(grappleMaxSpeed);
     }
 
     private void HandleSwingEntryAssist()
@@ -230,7 +265,7 @@ public class Grappling : MonoBehaviour
         Vector3 planarVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
         float heightGain = player.position.y - swingStartHeight;
 
-        rb.AddForce(directionToPoint * swingEntryPullForce * Time.fixedDeltaTime, ForceMode.Acceleration);
+        rb.AddForce(directionToPoint * swingEntryPullForce, ForceMode.Acceleration);
 
         float distanceToPoint = Vector3.Distance(transform.position, grapplePoint);
         float assistedDistance = Mathf.Max(distanceToPoint - swingEntryReelSpeed * Time.fixedDeltaTime, joint.minDistance);
@@ -314,12 +349,16 @@ public class Grappling : MonoBehaviour
 
     public void StopSwing()
     {
+        if (swingActive && rb != null)
+            rb.AddForce(rb.velocity.normalized * swingReleaseBoost, ForceMode.VelocityChange);
+
         swingActive = false;
         swingEntryAssistActive = false;
         inputBuffered = false;
         lowMomentumTimer = 0f;
         swingEntryAssistTimer = 0f;
         pm.swinging = false;
+        pm.ResetRestrictions();
 
         if (joint != null)
             Destroy(joint);
@@ -333,6 +372,7 @@ public class Grappling : MonoBehaviour
         CancelInvoke(nameof(StopGrapple));
 
         pm.freeze = false;
+        pm.ResetRestrictions();
         grappling = false;
         inputBuffered = false;
 
@@ -345,6 +385,14 @@ public class Grappling : MonoBehaviour
     private void StartCooldown()
     {
         grapplingCdTimer = grapplingCd;
+    }
+
+    private void LimitVelocity(float maxSpeed)
+    {
+        if (rb.velocity.magnitude <= maxSpeed)
+            return;
+
+        rb.velocity = rb.velocity.normalized * maxSpeed;
     }
 
     public bool IsGrappling()

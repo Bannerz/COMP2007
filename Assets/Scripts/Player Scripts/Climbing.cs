@@ -16,10 +16,21 @@ public class Climbing : MonoBehaviour
 
     [Header("Climbing")]
     public float climbSpeed;
-    public float maxClimbTime;
-    private float climbTimer;
+    public PlayerController playerController;
+    public float mantleForwardCheck = 1.1f;
+    public float mantleUpCheck = 1.4f;
+    public float mantleDownCheck = 2.4f;
+    public float mantleStandHeight = 1.05f;
+    public float mantleDuration = 0.25f;
+    public float mantleClearanceRadius = 0.45f;
+    public float mantleWallClearanceDistance = 0.75f;
+    public LayerMask mantleObstructionMask;
 
     private bool climbing;
+    private bool mantling;
+
+    [Header("Input")]
+    public KeyCode climbKey = KeyCode.E;
 
     [Header("ClimbJumping")]
     public float climbJumpUpForce;
@@ -51,14 +62,23 @@ public class Climbing : MonoBehaviour
     public void Start()
     {
         lg = GetComponent<LedgeGrabbing>();
+        if (playerController == null)
+            playerController = GetComponentInChildren<PlayerController>();
     }
 
     private void Update()
     {
         WallCheck();
+
+        if (climbing && !exitingWall && !mantling && CanMantle(out Vector3 mantlePosition))
+        {
+            StartCoroutine(MantleToPosition(mantlePosition));
+            return;
+        }
+
         StateMachine();
 
-        if (climbing && !exitingWall)
+        if (climbing && !exitingWall && !mantling)
             ClimbingMovement();
         
     }
@@ -73,16 +93,10 @@ public class Climbing : MonoBehaviour
                 StopClimbing();
         }
         //Mode - Climbing
-        else if (wallFront && Input.GetKey(KeyCode.W) && wallLookAngle < maxWallLookAngle && !exitingWall)
+        else if (CanClimb())
         {
-            if (!climbing && climbTimer > 0)
+            if (!climbing)
                 StartClimbing();
-
-            //Timer
-            if (climbTimer > 0)
-                climbTimer -= Time.deltaTime;
-            if (climbTimer <= 0)
-                StopClimbing();
         }
 
         else if (exitingWall)
@@ -117,15 +131,92 @@ public class Climbing : MonoBehaviour
         if (wallLookAngle > maxWallLookAngle)
             wallFront = false;
 
-        if(wallFront && newWall || playerMovement.grounded)
-            climbTimer = maxClimbTime;
+        if (wallFront && newWall || playerMovement.grounded)
+        {
             climbJumpsLeft = climbJumps;
+        }
+    }
+
+    private bool CanClimb()
+    {
+        bool hasStamina = playerController == null || playerController.CanClimb();
+        return wallFront && Input.GetKey(climbKey) && wallLookAngle < maxWallLookAngle && !exitingWall && hasStamina;
+    }
+
+    private bool CanMantle(out Vector3 mantlePosition)
+    {
+        mantlePosition = Vector3.zero;
+
+        Vector3 wallClearanceOrigin = transform.position + Vector3.up * mantleUpCheck;
+        if (Physics.SphereCast(wallClearanceOrigin, mantleClearanceRadius, orientation.forward, out _, mantleWallClearanceDistance, mantleObstructionMask))
+            return false;
+
+        Vector3 checkOrigin = transform.position + Vector3.up * mantleUpCheck + orientation.forward * mantleForwardCheck;
+        if (Physics.Raycast(checkOrigin, Vector3.down, out RaycastHit groundHit, mantleDownCheck, playerMovement.whatIsGround))
+        {
+            mantlePosition = groundHit.point + Vector3.up * mantleStandHeight + orientation.forward * 0.35f;
+            return HasMantleClearance(mantlePosition);
+        }
+
+        return false;
+    }
+
+    private bool HasMantleClearance(Vector3 mantlePosition)
+    {
+        Vector3 bottom = mantlePosition + Vector3.up * mantleClearanceRadius;
+        Vector3 top = mantlePosition + Vector3.up * (mantleStandHeight + mantleClearanceRadius);
+        Collider[] overlaps = Physics.OverlapCapsule(bottom, top, mantleClearanceRadius, mantleObstructionMask);
+
+        foreach (Collider overlap in overlaps)
+        {
+            if (overlap != null && !overlap.transform.IsChildOf(transform))
+                return false;
+        }
+
+        return true;
+    }
+
+    private IEnumerator MantleToPosition(Vector3 targetPosition)
+    {
+        mantling = true;
+        StopClimbing();
+
+        playerMovement.restricted = true;
+        rb.useGravity = false;
+        rb.velocity = Vector3.zero;
+
+        Vector3 startPosition = transform.position;
+        Vector3 upPosition = new Vector3(startPosition.x, targetPosition.y, startPosition.z);
+        float elapsed = 0f;
+
+        while (elapsed < mantleDuration * 0.5f)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / (mantleDuration * 0.5f));
+            rb.MovePosition(Vector3.Lerp(startPosition, upPosition, t));
+            yield return null;
+        }
+
+        elapsed = 0f;
+        while (elapsed < mantleDuration * 0.5f)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / (mantleDuration * 0.5f));
+            rb.MovePosition(Vector3.Lerp(upPosition, targetPosition, t));
+            yield return null;
+        }
+
+        rb.MovePosition(targetPosition);
+        rb.useGravity = true;
+        playerMovement.restricted = false;
+        mantling = false;
     }
 
     private void StartClimbing()
     {
         climbing = true;
         playerMovement.climbing = true;
+        playerController?.SetClimbing(true);
 
         lastWall = frontWallhit.transform;
         lastWallNormal = frontWallhit.normal;
@@ -140,6 +231,7 @@ public class Climbing : MonoBehaviour
     {
         climbing = false;
         playerMovement.climbing = false;
+        playerController?.SetClimbing(false);
     }
 
     public void ClimbJump()

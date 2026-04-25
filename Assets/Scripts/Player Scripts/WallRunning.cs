@@ -12,6 +12,7 @@ public class WallRunning : MonoBehaviour
     public float wallJumpUpForce;
     public float wallJumpSideForce;
     public float wallClimbSpeed;
+    [Range(0.1f, 1f)] public float sprintSpeedMultiplier = 0.9f;
     public float maxWallRunTime;
     private float wallRunTimer;
 
@@ -185,6 +186,7 @@ public class WallRunning : MonoBehaviour
 
         //forward force
         rb.AddForce(wallForward * wallRunForce, ForceMode.Force);
+        LimitWallRunSpeed(wallForward);
 
         //upwards/downwards force
         if (upwardsRunning)
@@ -200,6 +202,18 @@ public class WallRunning : MonoBehaviour
         if (useGravity)
             rb.AddForce(transform.up * gravityCounterForce, ForceMode.Force);
       
+    }
+
+    private void LimitWallRunSpeed(Vector3 wallForward)
+    {
+        float maxWallRunSpeed = playerMovement.sprintSpeed * sprintSpeedMultiplier;
+        Vector3 horizontalVelocity = Vector3.ProjectOnPlane(rb.velocity, transform.up);
+
+        if (horizontalVelocity.magnitude <= maxWallRunSpeed)
+            return;
+
+        Vector3 limitedVelocity = wallForward.normalized * maxWallRunSpeed;
+        rb.velocity = new Vector3(limitedVelocity.x, rb.velocity.y, limitedVelocity.z);
     }
 
     public void WallJump()

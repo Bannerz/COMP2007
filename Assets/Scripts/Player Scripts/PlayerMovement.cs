@@ -12,6 +12,7 @@ public class PlayerMovement : MonoBehaviour
     public float slideSpeed;
     private float desiredMoveSpeed;
     private float lastDesiredMoveSpeed;
+    private float airMoveSpeed;
 
     public float wallRunSpeed;
 
@@ -51,6 +52,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Ground Check")]
     public float playerHeight;
     public LayerMask whatIsGround;
+    public float groundCheckBuffer = 0.2f;
 
     public bool grounded;
 
@@ -61,6 +63,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("References")]
     public Climbing climbingScript;
+    public PlayerController playerController;
 
     public Transform orientation;
 
@@ -70,6 +73,7 @@ public class PlayerMovement : MonoBehaviour
     Vector3 moveDirection;
 
     Rigidbody rb;
+    Collider[] groundCheckColliders;
 
     public MovementState state;
     public enum MovementState
@@ -104,7 +108,10 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Camera Effects")]
     public PlayerCam cam;
+    public float normalFov = 60f;
+    public float sprintFov = 75f;
     public float grappleFov = 95f;
+    private float currentTargetFov;
 
     private bool enableMovementOnNextTouch;
     private Vector3 velocityToSet;
@@ -112,9 +119,14 @@ public class PlayerMovement : MonoBehaviour
     void Start()
     {
         moveSpeed = walkSpeed;
+        airMoveSpeed = walkSpeed;
         rb = GetComponent<Rigidbody>();
+        if (playerController == null)
+            playerController = GetComponentInChildren<PlayerController>();
+        groundCheckColliders = GetComponentsInChildren<Collider>();
         rb.freezeRotation = true;
         readyToJump = true;
+        currentTargetFov = normalFov;
 
         startYScale = transform.localScale.y;
     }
@@ -123,10 +135,11 @@ public class PlayerMovement : MonoBehaviour
     void Update()
     {
         // ground check
-        grounded = Physics.Raycast(transform.position, Vector3.down, playerHeight * 0.5f + 0.2f, whatIsGround);
+        grounded = IsGrounded();
 
         MyInput();
         StateHandler();
+        HandleSprintFov();
 
         // handle drag
         if (grounded && !activeGrapple)
@@ -231,25 +244,27 @@ public class PlayerMovement : MonoBehaviour
         {
             state = MovementState.crouching;
             desiredMoveSpeed = crouchSpeed;
-            return;
         }
 
         // Mode - Sprinting
-        else if (Input.GetKey(sprintKey) && grounded)
+        else if (CanSprint())
         {
             state = MovementState.sprinting;
             desiredMoveSpeed = sprintSpeed;
+            airMoveSpeed = sprintSpeed;
         }
         // Mode - Walking
         else if (grounded)
         {
             state = MovementState.walking;
             desiredMoveSpeed = walkSpeed;
+            airMoveSpeed = walkSpeed;
         }
         // Mode - Air
         else
         {
             state = MovementState.air;
+            desiredMoveSpeed = airMoveSpeed;
         }
 
         //check if desired move speed has changed drastically
@@ -274,6 +289,16 @@ public class PlayerMovement : MonoBehaviour
 
         if (Mathf.Abs(desiredMoveSpeed - moveSpeed) < 0.1f)
             keepMomentum = false;
+
+        playerController?.SetSprinting(state == MovementState.sprinting);
+    }
+
+    private bool CanSprint()
+    {
+        bool hasMovementInput = verticalInput != 0f || horizontalInput != 0f;
+        bool hasStamina = playerController == null || playerController.CanSprint();
+
+        return Input.GetKey(sprintKey) && grounded && hasMovementInput && hasStamina;
     }
 
     private IEnumerator SmoothlyLerpMoveSpeed()
@@ -308,6 +333,7 @@ public class PlayerMovement : MonoBehaviour
         if (restricted) return;
         if (climbing) return;
         if (wallRunning) return;
+        if (sliding) return;
 
         if (climbingScript.exitingWall) return;
 
@@ -361,6 +387,7 @@ public class PlayerMovement : MonoBehaviour
 
         if (activeGrapple) return;
         if (climbing || wallRunning) return;
+        if (sliding) return;
         // limit speed on slope
         if (OnSlope() && !exitingSlope) {
             if (rb.velocity.magnitude > moveSpeed)
@@ -377,6 +404,20 @@ public class PlayerMovement : MonoBehaviour
                 rb.velocity = new Vector3(limitedVel.x, rb.velocity.y, limitedVel.z);
             }
         }
+    }
+
+    private void HandleSprintFov()
+    {
+        if (cam == null || activeGrapple || wallRunning)
+            return;
+
+        bool usingSprintMomentum = state == MovementState.sprinting || (state == MovementState.air && Mathf.Approximately(airMoveSpeed, sprintSpeed));
+        float targetFov = usingSprintMomentum ? sprintFov : normalFov;
+        if (Mathf.Approximately(currentTargetFov, targetFov))
+            return;
+
+        currentTargetFov = targetFov;
+        cam.DoFov(targetFov);
     }
 
     private void Jump()
@@ -412,13 +453,60 @@ public class PlayerMovement : MonoBehaviour
 
     public bool OnSlope()
     {
-        if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, playerHeight * 0.5f + 0.3f))
+        if (Physics.Raycast(GetGroundCheckOrigin(), Vector3.down, out slopeHit, GetGroundCheckDistance() + 0.1f, whatIsGround))
         {
             float angle = Vector3.Angle(slopeHit.normal, Vector3.up);
             return angle < maxSlopeAngle && angle != 0;
         }
         return false;
     }   
+
+    private bool IsGrounded()
+    {
+        return Physics.Raycast(GetGroundCheckOrigin(), Vector3.down, GetGroundCheckDistance(), whatIsGround);
+    }
+
+    private Vector3 GetGroundCheckOrigin()
+    {
+        Bounds playerBounds;
+        if (TryGetPlayerBounds(out playerBounds))
+            return playerBounds.center;
+
+        return transform.position;
+    }
+
+    private float GetGroundCheckDistance()
+    {
+        Bounds playerBounds;
+        if (TryGetPlayerBounds(out playerBounds))
+            return playerBounds.extents.y + groundCheckBuffer;
+
+        return playerHeight * 0.5f + groundCheckBuffer;
+    }
+
+    private bool TryGetPlayerBounds(out Bounds playerBounds)
+    {
+        playerBounds = new Bounds(transform.position, Vector3.zero);
+        bool hasBounds = false;
+
+        foreach (Collider col in groundCheckColliders)
+        {
+            if (col == null || col.isTrigger)
+                continue;
+
+            if (!hasBounds)
+            {
+                playerBounds = col.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                playerBounds.Encapsulate(col.bounds);
+            }
+        }
+
+        return hasBounds;
+    }
 
     public Vector3 GetSlopeMoveDirection(Vector3 direction)
     {
@@ -447,7 +535,7 @@ public class PlayerMovement : MonoBehaviour
     public void ResetRestrictions()
     {
         activeGrapple = false;
-        cam.DoFov(60f);
+        cam.DoFov(currentTargetFov);
     }
 
     private void OnCollisionEnter(Collision collision)

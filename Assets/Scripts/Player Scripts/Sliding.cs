@@ -15,11 +15,13 @@ public class Sliding : MonoBehaviour
     private PlayerMovement playerMovement;
 
     [Header("Sliding")]
-    public float maxSlideTime;
-     public float slideForce;
-    private float slideTimer;
+    public float slideForce;
+    public float slideStartBoost = 10f;
+    public float slideFriction = 2f;
+    public float minSlideSpeed = 1.5f;
+    public float slideMomentumGraceTime = 0.25f;
+    private float slideStartTime;
 
-    public float slideYScale;
     private float startYScale;
 
     [Header("Input")]
@@ -41,11 +43,14 @@ public class Sliding : MonoBehaviour
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");  
 
-        if (Input.GetKeyDown(slideKey) && (horizontalInput != 0 || verticalInput != 0))
-            StartSlide();
-
-        if (Input.GetKeyUp(slideKey) && playerMovement.sliding)
+        if (playerMovement.sliding && (Input.GetKeyDown(slideKey) || Input.GetKeyDown(playerMovement.jumpKey)))
+        {
             StopSlide();
+            return;
+        }
+
+        if (Input.GetKeyDown(slideKey) && playerMovement.state == PlayerMovement.MovementState.sprinting)
+            StartSlide();
     }
 
     private void FixedUpdate()
@@ -57,32 +62,36 @@ public class Sliding : MonoBehaviour
     void StartSlide()
     {
         playerMovement.sliding = true;
-        playerObj.localScale = new Vector3(playerObj.localScale.x, slideYScale, playerObj.localScale.z);
+        playerObj.localScale = new Vector3(playerObj.localScale.x, playerMovement.crouchYScale, playerObj.localScale.z);
         rb.AddForce(Vector3.down * 5f, ForceMode.Impulse);
-        slideTimer = maxSlideTime;
+        rb.AddForce(orientation.forward * slideStartBoost, ForceMode.VelocityChange);
+        slideStartTime = Time.time;
     }
 
     void SlideingMovement()
     {
-       Vector3 inputDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
+        Vector3 flatVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
 
-       //sliding normal
-        if(!playerMovement.OnSlope() || rb.velocity.y > -0.1f)
+        // sliding normal / uphill: bleed momentum over time
+        if (!playerMovement.OnSlope() || rb.velocity.y > -0.1f)
         {
-            rb.AddForce(inputDirection.normalized * slideForce, ForceMode.Force);
+            Vector3 slowedVelocity = Vector3.MoveTowards(flatVelocity, Vector3.zero, slideFriction * Time.fixedDeltaTime);
+            rb.velocity = new Vector3(slowedVelocity.x, rb.velocity.y, slowedVelocity.z);
 
-            slideTimer -= Time.deltaTime;
         }
 
-        //sliding on slope
+        // sliding downhill: gravity/force keeps the slide alive
         else
         {
-            rb.AddForce(playerMovement.GetSlopeMoveDirection(inputDirection) * slideForce, ForceMode.Force);        }
+            Vector3 downhillDirection = playerMovement.GetSlopeMoveDirection(Vector3.down);
+            rb.AddForce(downhillDirection * slideForce, ForceMode.Force);
+        }
         
 
        
 
-       if(slideTimer <= 0)
+       flatVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+       if(Time.time - slideStartTime > slideMomentumGraceTime && flatVelocity.magnitude <= minSlideSpeed)
             StopSlide();
 
     }
