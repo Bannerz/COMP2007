@@ -148,6 +148,52 @@ MonoBehaviour:
   attackTrigger: Attack
   audioSource: {fileID: 0}
   attackSound: {fileID: 0}
+  swingSounds:
+  - {fileID: 8300000, guid: ef038e3a592d0974889d7f6fa9c50d77, type: 3}
+  - {fileID: 8300000, guid: f592e4534a0350e4d9cf649c8a23c320, type: 3}
+  - {fileID: 8300000, guid: e148b2068ce8d9f44a64e6103b945324, type: 3}
+  - {fileID: 8300000, guid: f2797aa14c6b71f4fbaa812eb1d6353b, type: 3}
+  - {fileID: 8300000, guid: 25d255334f68c824987ea7dbd4b2787e, type: 3}
+  - {fileID: 8300000, guid: 9fc6da1acc07bd7479dd3b566b48e4e8, type: 3}
+  - {fileID: 8300000, guid: 201d2d466e1d41246a0bd712033c1a95, type: 3}
+  - {fileID: 8300000, guid: 28068a2c476bfc14086b656de50a221e, type: 3}
+  - {fileID: 8300000, guid: 2cad6cd923df8f2449e189de4f787f12, type: 3}
+  - {fileID: 8300000, guid: 0ad9f8c532f47c04881127622e2e7146, type: 3}
+  - {fileID: 8300000, guid: 9afca9c3aaa48a540a95f13b3aa4f7fd, type: 3}
+  - {fileID: 8300000, guid: 299e064a756a95c4db873eb7c86830e6, type: 3}
+  - {fileID: 8300000, guid: c0d3c32b562c3274a8fc4234451387bc, type: 3}
+  - {fileID: 8300000, guid: b0f131864ac1fdb428e4d2f6db83e6b4, type: 3}
+  - {fileID: 8300000, guid: 7d64edd91c90f4344bb090d27fad7a4d, type: 3}
+  - {fileID: 8300000, guid: 10db63b832e363644958b77fa76a6362, type: 3}
+  - {fileID: 8300000, guid: e5b2dc682aba8ca43ae15fa6c80cc07b, type: 3}
+  - {fileID: 8300000, guid: 7dbb6ed516c984b4598f111dfc856d72, type: 3}
+  - {fileID: 8300000, guid: 5dd3df4824ea596428b780fa0bab65b0, type: 3}
+  - {fileID: 8300000, guid: 37fcc3c901d84bc44994dd9f104f7e4d, type: 3}
+  - {fileID: 8300000, guid: 67b406aa8a64b6744ace60019e033931, type: 3}
+  - {fileID: 8300000, guid: 10d882761a0d4c149a371d971dc232cd, type: 3}
+  - {fileID: 8300000, guid: edf5b77f3728e3e42942f84988adebdb, type: 3}
+  - {fileID: 8300000, guid: bb445814413d2b64ca6c8422aa2c168b, type: 3}
+  - {fileID: 8300000, guid: 7f4c1114e5b14b94489c650f830b914d, type: 3}
+  - {fileID: 8300000, guid: d2eb2ebc8f3da9b4d90fd41a6fb19be4, type: 3}
+  - {fileID: 8300000, guid: e6c3222b2d30c4243b84695fb1b9a7f8, type: 3}
+  - {fileID: 8300000, guid: 789c5d7988c84d34fa65bacb2cac5e3b, type: 3}
+  - {fileID: 8300000, guid: d1e0765ae602ab7468327d52cb57bf57, type: 3}
+  - {fileID: 8300000, guid: df0c4e595cff49b45b55db86d51635fa, type: 3}
+  - {fileID: 8300000, guid: 9e3e1b460bdbd9441b221ce1781cd8aa, type: 3}
+  - {fileID: 8300000, guid: d7e8193b92aba6d42a4b4fecf02b1951, type: 3}
+  - {fileID: 8300000, guid: b9416079fe2d76f488f14d052d09626c, type: 3}
+  - {fileID: 8300000, guid: 072e969a4832d3b4da432af789c13304, type: 3}
+  - {fileID: 8300000, guid: e3e56429c44fb9f42879adf4780fd82e, type: 3}
+  - {fileID: 8300000, guid: a5bcc9e79d1d55f4e86a0ef3dc897f12, type: 3}
+  - {fileID: 8300000, guid: 825996151f486f14cb062dc14ec9d426, type: 3}
+  - {fileID: 8300000, guid: bfb784992215ff84fb4fa23ee46c2216, type: 3}
+  - {fileID: 8300000, guid: 3c06919014da7de46b5fdfe2f62f77a1, type: 3}
+  - {fileID: 8300000, guid: e9721ca47dc6fda4b960cdef4a3c493a, type: 3}
+  - {fileID: 8300000, guid: 9e1d96bd424ebed4b9c2e3c74d77e591, type: 3}
+  - {fileID: 8300000, guid: ba909658e1e2f2c48b9b7244c814f982, type: 3}
+  - {fileID: 8300000, guid: d878269a835e7c048973255c7aade67e, type: 3}
+  swingSoundVolume: 1
+  swingPitchRange: {x: 0.95, y: 1.05}
 --- !u!114 &910000000000000002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -161,3 +207,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   pickupOnTouch: 1
+  animateWhileWaiting: 1
+  spinSpeed: 90
+  bobHeight: 0.15
+  bobSpeed: 2
+  createGlowLight: 1
+  glowColor: {r: 1, g: 0.78, b: 0.35, a: 1}
+  glowIntensity: 0.75
+  glowRange: 2.2
+  glowPulseAmount: 0.25
+  glowPulseSpeed: 2
+  audioSource: {fileID: 0}
+  pickupSound: {fileID: 0}
+  pickupVolume: 1

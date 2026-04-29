@@ -28,6 +28,9 @@ public class SwordWeapon : MonoBehaviour
     [SerializeField] private string attackTrigger = "Attack";
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip attackSound;
+    [SerializeField] private AudioClip[] swingSounds;
+    [SerializeField] private float swingSoundVolume = 1f;
+    [SerializeField] private Vector2 swingPitchRange = new Vector2(0.95f, 1.05f);
 
     private Collider[] weaponColliders;
     private Rigidbody weaponRigidbody;
@@ -84,8 +87,7 @@ public class SwordWeapon : MonoBehaviour
 
         PlayProceduralSwing();
 
-        if (audioSource != null && attackSound != null)
-            audioSource.PlayOneShot(attackSound);
+        PlaySwingSound();
 
         Transform origin = attackOrigin != null ? attackOrigin : transform;
         RaycastHit[] hits = Physics.SphereCastAll(
@@ -123,6 +125,34 @@ public class SwordWeapon : MonoBehaviour
             StopCoroutine(swingRoutine);
 
         swingRoutine = StartCoroutine(SwingRoutine());
+    }
+
+    private void PlaySwingSound()
+    {
+        AudioClip clip = GetRandomSwingClip();
+        if (clip == null)
+            return;
+
+        if (audioSource == null)
+        {
+            AudioSource.PlayClipAtPoint(clip, transform.position, swingSoundVolume);
+            return;
+        }
+
+        audioSource.pitch = UnityEngine.Random.Range(swingPitchRange.x, swingPitchRange.y);
+        audioSource.PlayOneShot(clip, swingSoundVolume);
+    }
+
+    private AudioClip GetRandomSwingClip()
+    {
+        if (swingSounds != null && swingSounds.Length > 0)
+        {
+            AudioClip clip = swingSounds[UnityEngine.Random.Range(0, swingSounds.Length)];
+            if (clip != null)
+                return clip;
+        }
+
+        return attackSound;
     }
 
     private IEnumerator SwingRoutine()

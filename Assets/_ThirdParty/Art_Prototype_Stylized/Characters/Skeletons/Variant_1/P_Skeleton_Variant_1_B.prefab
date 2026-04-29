@@ -237,3 +237,15 @@ MonoBehaviour:
   animator: {fileID: 7074983120976598016}
   deathTrigger: Die
   disableCollidersOnDeath: 1
+  audioSource: {fileID: 0}
+  hitSounds:
+  - {fileID: 8300000, guid: 277551f63c35d6548b9792d3e27cab77, type: 3}
+  - {fileID: 8300000, guid: 81824d6f7ee0d7146b77bd016ee3df5d, type: 3}
+  - {fileID: 8300000, guid: 53f6338a0c9b4bf4298e3cd704823105, type: 3}
+  deathSounds:
+  - {fileID: 8300000, guid: bbf06ce62f58f7545b2cfc7a9dbfe808, type: 3}
+  - {fileID: 8300000, guid: 8a53fd85733c7c646ba1d85073f2d123, type: 3}
+  - {fileID: 8300000, guid: e49a07f154f5a604183aa123ede8305f, type: 3}
+  hitVolume: 1
+  deathVolume: 1
+  pitchRange: {x: 0.95, y: 1.05}
