@@ -56,6 +56,8 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
     private void Die()
     {
+        GameStatsUI.Instance?.EnemyKilled();
+
         PlayRandomSound(deathSounds, deathVolume);
         animator?.SetTrigger(deathTrigger);
 

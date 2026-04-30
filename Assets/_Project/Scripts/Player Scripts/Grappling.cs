@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class Grappling : MonoBehaviour
 {
@@ -56,10 +57,28 @@ public class Grappling : MonoBehaviour
     public float grapplingCd = 1f;
     private float grapplingCdTimer;
 
+    [Header("Grapple Audio")]
+    [SerializeField] private AudioSource grappleAudioSource;
+    [SerializeField] private AudioSource grappleLoopAudioSource;
+    [SerializeField] private AudioClip grappleShootClip;
+    [FormerlySerializedAs("grappleStartClip")]
+    [SerializeField] private AudioClip grappleGrabClip;
+    [SerializeField] private AudioClip grappleLoopClip;
+    [FormerlySerializedAs("grappleEndClip")]
+    [SerializeField] private AudioClip grappleReleaseClip;
+    [SerializeField] private float grappleShootVolume = 0.8f;
+    [FormerlySerializedAs("grappleStartVolume")]
+    [SerializeField] private float grappleGrabVolume = 0.8f;
+    [SerializeField] private float grappleLoopVolume = 0.55f;
+    [FormerlySerializedAs("grappleEndVolume")]
+    [SerializeField] private float grappleReleaseVolume = 0.8f;
+    [SerializeField] private Vector2 grapplePitchRange = new Vector2(0.95f, 1.05f);
+
     private Vector3 grapplePoint;
     private SpringJoint joint;
     private bool grappling;
     private bool swingActive;
+    private bool grappleAudioActive;
     private bool swingEntryAssistActive;
     private bool inputBuffered;
     private float holdTimer;
@@ -76,6 +95,16 @@ public class Grappling : MonoBehaviour
         if (player == null) player = transform;
         if (orientation == null) orientation = transform;
         if (hotbar == null) hotbar = FindObjectOfType<HotbarController>();
+        if (grappleAudioSource == null)
+        {
+            grappleAudioSource = gameObject.AddComponent<AudioSource>();
+            grappleAudioSource.playOnAwake = false;
+        }
+        if (grappleLoopAudioSource == null)
+        {
+            grappleLoopAudioSource = gameObject.AddComponent<AudioSource>();
+            grappleLoopAudioSource.playOnAwake = false;
+        }
     }
 
     private void Update()
@@ -145,6 +174,7 @@ public class Grappling : MonoBehaviour
         if (!TryGetTetherPoint(out grapplePoint))
             return;
 
+        PlayGrappleShootAudio();
         inputBuffered = true;
         holdTimer = 0f;
         lowMomentumTimer = 0f;
@@ -162,6 +192,7 @@ public class Grappling : MonoBehaviour
         if (pm.cam != null)
             pm.cam.DoFov(pm.grappleFov);
         grapplePullTimer = 0f;
+        PlayGrappleGrabAudio();
 
         CancelInvoke(nameof(ExecuteGrapple));
         CancelInvoke(nameof(StopGrapple));
@@ -206,6 +237,7 @@ public class Grappling : MonoBehaviour
             pm.cam.DoFov(pm.grappleFov);
         swingActive = true;
         swingEntryAssistActive = true;
+        PlayGrappleGrabAudio();
         lowMomentumTimer = 0f;
         swingEntryAssistTimer = 0f;
         swingStartHeight = player.position.y;
@@ -393,6 +425,7 @@ public class Grappling : MonoBehaviour
         swingEntryAssistTimer = 0f;
         pm.swinging = false;
         pm.ResetRestrictions();
+        PlayGrappleReleaseAudio();
 
         if (joint != null)
             Destroy(joint);
@@ -413,7 +446,62 @@ public class Grappling : MonoBehaviour
         if (swingActive)
             StopSwing();
         else
+        {
+            PlayGrappleReleaseAudio();
             StartCooldown();
+        }
+    }
+
+    private void PlayGrappleShootAudio()
+    {
+        if (grappleAudioSource == null || grappleShootClip == null)
+            return;
+
+        grappleAudioSource.pitch = Random.Range(grapplePitchRange.x, grapplePitchRange.y);
+        grappleAudioSource.volume = 1f;
+        grappleAudioSource.PlayOneShot(grappleShootClip, grappleShootVolume);
+    }
+
+    private void PlayGrappleGrabAudio()
+    {
+        grappleAudioActive = true;
+
+        if (grappleAudioSource != null && grappleGrabClip != null)
+        {
+            grappleAudioSource.pitch = Random.Range(grapplePitchRange.x, grapplePitchRange.y);
+            grappleAudioSource.volume = 1f;
+            grappleAudioSource.PlayOneShot(grappleGrabClip, grappleGrabVolume);
+        }
+
+        if (grappleLoopAudioSource == null || grappleLoopClip == null)
+            return;
+
+        grappleLoopAudioSource.pitch = Random.Range(grapplePitchRange.x, grapplePitchRange.y);
+        grappleLoopAudioSource.clip = grappleLoopClip;
+        grappleLoopAudioSource.loop = true;
+        grappleLoopAudioSource.volume = grappleLoopVolume;
+        grappleLoopAudioSource.Play();
+    }
+
+    private void PlayGrappleReleaseAudio()
+    {
+        if (!grappleAudioActive)
+            return;
+
+        grappleAudioActive = false;
+
+        if (grappleLoopAudioSource != null && grappleLoopAudioSource.clip == grappleLoopClip)
+            grappleLoopAudioSource.Stop();
+
+        if (grappleLoopAudioSource != null)
+            grappleLoopAudioSource.loop = false;
+
+        if (grappleAudioSource != null && grappleReleaseClip != null)
+        {
+            grappleAudioSource.pitch = Random.Range(grapplePitchRange.x, grapplePitchRange.y);
+            grappleAudioSource.volume = 1f;
+            grappleAudioSource.PlayOneShot(grappleReleaseClip, grappleReleaseVolume);
+        }
     }
 
     private void StartCooldown()

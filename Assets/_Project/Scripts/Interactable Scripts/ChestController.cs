@@ -100,8 +100,7 @@ public class ChestController : MonoBehaviour, IInteractable {
             audioSource.PlayOneShot(randomCoinSound);
         }
         
-        // TODO: Add coins to player inventory
-        // You can call this: PlayerInventory.AddCoins(coinCount);
+        GameStatsUI.Instance?.AddGold(coinCount);
         Debug.Log($"Collected {coinCount} coins!");
     }
     

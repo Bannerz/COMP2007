@@ -113,6 +113,23 @@ public class PlayerMovement : MonoBehaviour
     public float grappleFov = 95f;
     private float currentTargetFov;
 
+    [Header("Footstep Audio")]
+    [SerializeField] private AudioSource footstepAudioSource;
+    [SerializeField] private AudioClip footstepClip;
+    [SerializeField] private float footstepVolume = 0.7f;
+    [SerializeField] private float walkFootstepInterval = 0.45f;
+    [SerializeField] private float sprintFootstepInterval = 0.32f;
+    [SerializeField] private float wallRunFootstepInterval = 0.28f;
+    [SerializeField] private AudioClip jumpClip;
+    [SerializeField] private AudioClip landClip;
+    [SerializeField] private float jumpVolume = 0.8f;
+    [SerializeField] private float landVolume = 0.8f;
+    [SerializeField] private float minLandingVelocity = 2f;
+    [SerializeField] private Vector2 footstepPitchRange = new Vector2(0.95f, 1.05f);
+    private float footstepTimer;
+    private bool wasGrounded;
+    private float lastUngroundedVerticalVelocity;
+
     private bool enableMovementOnNextTouch;
     private Vector3 velocityToSet;
 
@@ -123,6 +140,11 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         if (playerController == null)
             playerController = GetComponentInChildren<PlayerController>();
+        if (footstepAudioSource == null)
+        {
+            footstepAudioSource = gameObject.AddComponent<AudioSource>();
+            footstepAudioSource.playOnAwake = false;
+        }
         groundCheckColliders = GetComponentsInChildren<Collider>();
         rb.freezeRotation = true;
         readyToJump = true;
@@ -134,12 +156,18 @@ public class PlayerMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        wasGrounded = grounded;
+
         // ground check
         grounded = IsGrounded();
+        if (!grounded)
+            lastUngroundedVerticalVelocity = rb.velocity.y;
 
         MyInput();
         StateHandler();
         HandleSprintFov();
+        HandleLandingAudio();
+        HandleFootsteps();
 
         // handle drag
         if (grounded && !activeGrapple)
@@ -293,6 +321,57 @@ public class PlayerMovement : MonoBehaviour
         playerController?.SetSprinting(state == MovementState.sprinting);
     }
 
+    private void HandleFootsteps()
+    {
+        if (footstepClip == null || footstepAudioSource == null)
+            return;
+
+        bool canPlayFootstep = (grounded || wallRunning)
+            && !sliding
+            && !activeGrapple
+            && !swinging
+            && !climbing
+            && state != MovementState.freeze
+            && state != MovementState.air;
+
+        Vector3 flatVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+        bool isMoving = flatVelocity.magnitude > 0.2f && (horizontalInput != 0f || verticalInput != 0f);
+
+        if (!canPlayFootstep || !isMoving)
+        {
+            footstepTimer = 0f;
+            return;
+        }
+
+        float interval = state == MovementState.wallRunning ? wallRunFootstepInterval : state == MovementState.sprinting ? sprintFootstepInterval : walkFootstepInterval;
+        footstepTimer -= Time.deltaTime;
+
+        if (footstepTimer > 0f)
+            return;
+
+        footstepAudioSource.pitch = Random.Range(footstepPitchRange.x, footstepPitchRange.y);
+        footstepAudioSource.volume = 1f;
+        footstepAudioSource.PlayOneShot(footstepClip, footstepVolume);
+        footstepTimer = Mathf.Max(0.05f, interval);
+    }
+
+    private void HandleLandingAudio()
+    {
+        if (landClip == null || footstepAudioSource == null)
+            return;
+
+        if (wasGrounded || !grounded)
+            return;
+
+        if (Mathf.Abs(lastUngroundedVerticalVelocity) < minLandingVelocity)
+            return;
+
+        footstepAudioSource.pitch = Random.Range(footstepPitchRange.x, footstepPitchRange.y);
+        footstepAudioSource.volume = 1f;
+        footstepAudioSource.PlayOneShot(landClip, landVolume);
+        lastUngroundedVerticalVelocity = 0f;
+    }
+
     private bool CanSprint()
     {
         bool hasMovementInput = verticalInput != 0f || horizontalInput != 0f;
@@ -423,10 +502,21 @@ public class PlayerMovement : MonoBehaviour
     private void Jump()
     {
         exitingSlope = true;
+        PlayJumpAudio();
         // reset y velocity
         rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
 
         rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+    }
+
+    private void PlayJumpAudio()
+    {
+        if (jumpClip == null || footstepAudioSource == null)
+            return;
+
+        footstepAudioSource.pitch = Random.Range(footstepPitchRange.x, footstepPitchRange.y);
+        footstepAudioSource.volume = 1f;
+        footstepAudioSource.PlayOneShot(jumpClip, jumpVolume);
     }
 
     private void ApplyExtraGravity()
