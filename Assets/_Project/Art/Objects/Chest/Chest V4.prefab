@@ -5510,6 +5510,7 @@ MonoBehaviour:
   - {fileID: 8300000, guid: aa5eed1f79fd74531a6317277044b19d, type: 3}
   interactionDistance: 2
   particleDelayTime: 2
+  handleOwnInteraction: 0
   coinCount: 10
 --- !u!114 &3751762108398111837
 MonoBehaviour:

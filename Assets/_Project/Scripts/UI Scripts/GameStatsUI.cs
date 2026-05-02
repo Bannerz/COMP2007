@@ -10,13 +10,20 @@ public class GameStatsUI : MonoBehaviour
     [SerializeField] private TMP_Text goldCount;
     [SerializeField] private TMP_Text enemiesLabel;
     [SerializeField] private TMP_Text enemyCount;
+    [SerializeField] private TMP_Text chestLabel;
+    [SerializeField] private TMP_Text chestCount;
 
     [Header("Labels")]
     [SerializeField] private string goldLabelText = "Gold";
     [SerializeField] private string enemiesLabelText = "Enemies";
+    [SerializeField] private string chestLabelText = "Chests";
 
     private int currentGold;
     private int remainingEnemies;
+    private int remainingChests;
+
+    public int RemainingEnemies => remainingEnemies;
+    public bool AllEnemiesKilled => remainingEnemies <= 0;
 
     private void Awake()
     {
@@ -32,6 +39,7 @@ public class GameStatsUI : MonoBehaviour
     private void Start()
     {
         remainingEnemies = FindObjectsOfType<EnemyHealth>().Length;
+        remainingChests = FindObjectsOfType<ChestController>().Length;
         RefreshUI();
     }
 
@@ -50,6 +58,12 @@ public class GameStatsUI : MonoBehaviour
         RefreshUI();
     }
 
+    public void ChestLooted()
+    {
+        remainingChests = Mathf.Max(0, remainingChests - 1);
+        RefreshUI();
+    }
+
     private void RefreshUI()
     {
         if (goldLabel != null)
@@ -63,5 +77,11 @@ public class GameStatsUI : MonoBehaviour
 
         if (enemyCount != null)
             enemyCount.text = remainingEnemies.ToString();
+
+        if (chestLabel != null)
+            chestLabel.text = chestLabelText;
+
+        if (chestCount != null)
+            chestCount.text = remainingChests.ToString();
     }
 }

@@ -28,10 +28,9 @@ public class GrapplingRope : MonoBehaviour {
     }
 
     void DrawRope() {
-        bool isGrappling = grapplingGun != null && grapplingGun.IsGrappling();
-        bool isSwinging = grapplingGun != null && grapplingGun.IsSwinging();
+        bool ropeVisible = grapplingGun != null && grapplingGun.IsRopeVisible();
         
-        if (!isGrappling && !isSwinging) {
+        if (!ropeVisible) {
             if (grapplingGun != null)
                 currentGrapplePosition = grapplingGun.gunTip.position;
             else if (swinging != null)
@@ -51,9 +50,16 @@ public class GrapplingRope : MonoBehaviour {
         spring.SetStrength(strength);
         spring.Update(Time.deltaTime);
 
-        var targetPoint = isGrappling ? grapplingGun.GetGrapplePoint() : grapplingGun.GetSwingPoint();
+        var targetPoint = grapplingGun.GetRopeEndPoint();
         var gunTipPosition = grapplingGun.gunTip.position;
-        var up = Quaternion.LookRotation((targetPoint - gunTipPosition).normalized) * Vector3.up;
+        var ropeDirection = targetPoint - gunTipPosition;
+        if (ropeDirection.sqrMagnitude <= 0.0001f)
+        {
+            lr.positionCount = 0;
+            return;
+        }
+
+        var up = Quaternion.LookRotation(ropeDirection.normalized) * Vector3.up;
 
         currentGrapplePosition = Vector3.Lerp(currentGrapplePosition, targetPoint, Time.deltaTime * 12f);
 

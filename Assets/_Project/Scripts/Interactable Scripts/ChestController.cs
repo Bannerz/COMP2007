@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
-public class ChestController : MonoBehaviour, IInteractable {
+public class ChestController : MonoBehaviour, IInteractable, IInteractablePrompt, IInteractionAvailability {
     
     [Header("References")]
     public Animator animator;
@@ -11,7 +12,7 @@ public class ChestController : MonoBehaviour, IInteractable {
     public GameObject coinsMesh;
     public Light chestLight;
     [Header("UI")]
-    public GameObject interactPrompt; // assign a UI Image/GameObject to show when player is in range
+    public Image interactPrompt;
     
     [Header("Settings")]
     public string openAnimationName = "Open";
@@ -20,6 +21,7 @@ public class ChestController : MonoBehaviour, IInteractable {
     public AudioClip[] coinCollectSounds;
     public float interactionDistance = 2f;
     public float particleDelayTime = 2f;
+    public bool handleOwnInteraction = false;
     
     [Header("Coins")]
     public int coinCount = 10;
@@ -27,12 +29,16 @@ public class ChestController : MonoBehaviour, IInteractable {
     private bool isOpened = false;
     private bool isLooted = false;
     private bool playerInRange = false;
+
+    public bool CanInteract => !isLooted;
     
     void Start() {
         // Ensure light is off when chest is closed
         if (chestLight != null) {
             chestLight.enabled = false;
         }
+
+        SetPromptVisible(false);
     }
     
     public void InteractWithChest() {
@@ -101,6 +107,7 @@ public class ChestController : MonoBehaviour, IInteractable {
         }
         
         GameStatsUI.Instance?.AddGold(coinCount);
+        GameStatsUI.Instance?.ChestLooted();
         Debug.Log($"Collected {coinCount} coins!");
     }
     
@@ -122,7 +129,7 @@ public class ChestController : MonoBehaviour, IInteractable {
     }
 
     void Update() {
-        if (playerInRange && Input.GetKeyDown(KeyCode.E)) {
+        if (handleOwnInteraction && playerInRange && Input.GetKeyDown(KeyCode.E)) {
             InteractWithChest();
         }
     }
@@ -130,14 +137,20 @@ public class ChestController : MonoBehaviour, IInteractable {
     void OnTriggerEnter(Collider other) {
         if (other.CompareTag("Player")) {
             playerInRange = true;
-            if (interactPrompt != null) interactPrompt.SetActive(true);
+            if (handleOwnInteraction) SetPromptVisible(true);
         }
     }
 
     void OnTriggerExit(Collider other) {
         if (other.CompareTag("Player")) {
             playerInRange = false;
-            if (interactPrompt != null) interactPrompt.SetActive(false);
+            if (handleOwnInteraction) SetPromptVisible(false);
+        }
+    }
+
+    public void SetPromptVisible(bool visible) {
+        if (interactPrompt != null && interactPrompt.gameObject.activeSelf != visible) {
+            interactPrompt.gameObject.SetActive(visible);
         }
     }
 

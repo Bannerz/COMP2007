@@ -53,6 +53,15 @@ public class Grappling : MonoBehaviour
     public float predictionSphereCastRadius = 1f;
     public Transform predictionPoint;
 
+    [Header("Grapple Hook Visual")]
+    [SerializeField] private Transform grappleHook;
+    [SerializeField] private float hookShootSpeed = 70f;
+    [SerializeField] private float hookReturnSpeed = 85f;
+    [SerializeField] private float hookStickDistance = 0.15f;
+    [SerializeField] private bool alignHookToTravelDirection = true;
+    [SerializeField] private bool alignHookToSurfaceNormal = true;
+    [SerializeField] private Vector3 hookRotationOffset;
+
     [Header("Cooldown")]
     public float grapplingCd = 1f;
     private float grapplingCdTimer;
@@ -75,12 +84,15 @@ public class Grappling : MonoBehaviour
     [SerializeField] private Vector2 grapplePitchRange = new Vector2(0.95f, 1.05f);
 
     private Vector3 grapplePoint;
+    private Vector3 grappleNormal;
     private SpringJoint joint;
     private bool grappling;
     private bool swingActive;
     private bool grappleAudioActive;
     private bool swingEntryAssistActive;
     private bool inputBuffered;
+    private enum HookVisualState { Idle, Shooting, Stuck, Returning }
+    private HookVisualState hookVisualState;
     private float holdTimer;
     private float lowMomentumTimer;
     private float swingEntryAssistTimer;
@@ -95,6 +107,7 @@ public class Grappling : MonoBehaviour
         if (player == null) player = transform;
         if (orientation == null) orientation = transform;
         if (hotbar == null) hotbar = FindObjectOfType<HotbarController>();
+        ResetHookToGunTip();
         if (grappleAudioSource == null)
         {
             grappleAudioSource = gameObject.AddComponent<AudioSource>();
@@ -113,6 +126,8 @@ public class Grappling : MonoBehaviour
         {
             HidePrediction();
             CancelActiveGrapple();
+            StartHookReturn();
+            UpdateHookVisual();
             return;
         }
 
@@ -122,6 +137,7 @@ public class Grappling : MonoBehaviour
         UpdatePrediction();
         HandleInput();
         HandleSwingAutoRelease();
+        UpdateHookVisual();
     }
 
     private void FixedUpdate()
@@ -174,6 +190,7 @@ public class Grappling : MonoBehaviour
         if (!TryGetTetherPoint(out grapplePoint))
             return;
 
+        StartHookShoot();
         PlayGrappleShootAudio();
         inputBuffered = true;
         holdTimer = 0f;
@@ -401,12 +418,14 @@ public class Grappling : MonoBehaviour
         if (Physics.Raycast(cam.position, cam.forward, out RaycastHit raycastHit, castDistance, whatIsGrappleable))
         {
             point = raycastHit.point;
+            grappleNormal = raycastHit.normal;
             return true;
         }
 
         if (Physics.SphereCast(cam.position, predictionSphereCastRadius, cam.forward, out RaycastHit sphereCastHit, castDistance, whatIsGrappleable))
         {
             point = sphereCastHit.point;
+            grappleNormal = sphereCastHit.normal;
             return true;
         }
 
@@ -426,6 +445,7 @@ public class Grappling : MonoBehaviour
         pm.swinging = false;
         pm.ResetRestrictions();
         PlayGrappleReleaseAudio();
+        StartHookReturn();
 
         if (joint != null)
             Destroy(joint);
@@ -448,8 +468,103 @@ public class Grappling : MonoBehaviour
         else
         {
             PlayGrappleReleaseAudio();
+            StartHookReturn();
             StartCooldown();
         }
+    }
+
+    private void StartHookShoot()
+    {
+        if (grappleHook == null || gunTip == null)
+            return;
+
+        grappleHook.gameObject.SetActive(true);
+        grappleHook.position = gunTip.position;
+        hookVisualState = HookVisualState.Shooting;
+    }
+
+    private void StartHookReturn()
+    {
+        if (grappleHook == null || gunTip == null)
+            return;
+
+        if (hookVisualState == HookVisualState.Idle)
+            return;
+
+        grappleHook.gameObject.SetActive(true);
+        hookVisualState = HookVisualState.Returning;
+    }
+
+    private void UpdateHookVisual()
+    {
+        if (grappleHook == null || gunTip == null)
+            return;
+
+        switch (hookVisualState)
+        {
+            case HookVisualState.Idle:
+                ResetHookToGunTip();
+                break;
+
+            case HookVisualState.Shooting:
+                MoveHookTowards(grapplePoint, hookShootSpeed);
+                if (Vector3.Distance(grappleHook.position, grapplePoint) <= hookStickDistance)
+                {
+                    grappleHook.position = grapplePoint;
+                    AlignHookToSurface();
+                    hookVisualState = HookVisualState.Stuck;
+                }
+                break;
+
+            case HookVisualState.Stuck:
+                grappleHook.position = grapplePoint;
+                AlignHookToSurface();
+                break;
+
+            case HookVisualState.Returning:
+                MoveHookTowards(gunTip.position, hookReturnSpeed);
+                if (Vector3.Distance(grappleHook.position, gunTip.position) <= hookStickDistance)
+                {
+                    ResetHookToGunTip();
+                    hookVisualState = HookVisualState.Idle;
+                }
+                break;
+        }
+    }
+
+    private void MoveHookTowards(Vector3 targetPosition, float speed)
+    {
+        Vector3 previousPosition = grappleHook.position;
+        grappleHook.position = Vector3.MoveTowards(grappleHook.position, targetPosition, speed * Time.deltaTime);
+
+        if (alignHookToTravelDirection)
+            AlignHookToDirection(grappleHook.position - previousPosition);
+    }
+
+    private void ResetHookToGunTip()
+    {
+        if (grappleHook == null || gunTip == null)
+            return;
+
+        grappleHook.gameObject.SetActive(true);
+        grappleHook.position = gunTip.position;
+        grappleHook.rotation = gunTip.rotation * Quaternion.Euler(hookRotationOffset);
+    }
+
+    private void AlignHookToDirection(Vector3 direction)
+    {
+        if (direction.sqrMagnitude <= 0.0001f)
+            return;
+
+        grappleHook.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up) * Quaternion.Euler(hookRotationOffset);
+    }
+
+    private void AlignHookToSurface()
+    {
+        if (!alignHookToSurfaceNormal || grappleNormal.sqrMagnitude <= 0.0001f)
+            return;
+
+        grappleHook.rotation = Quaternion.LookRotation(-grappleNormal.normalized, Vector3.up) * Quaternion.Euler(hookRotationOffset);
     }
 
     private void PlayGrappleShootAudio()
@@ -525,6 +640,19 @@ public class Grappling : MonoBehaviour
     public bool IsSwinging()
     {
         return swingActive;
+    }
+
+    public bool IsRopeVisible()
+    {
+        return grappling || swingActive || inputBuffered || hookVisualState == HookVisualState.Shooting || hookVisualState == HookVisualState.Returning;
+    }
+
+    public Vector3 GetRopeEndPoint()
+    {
+        if (grappleHook != null && hookVisualState != HookVisualState.Idle)
+            return grappleHook.position;
+
+        return grapplePoint;
     }
 
     public Vector3 GetGrapplePoint()

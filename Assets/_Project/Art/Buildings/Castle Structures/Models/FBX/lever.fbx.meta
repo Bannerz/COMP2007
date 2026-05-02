@@ -1,8 +1,11 @@
 fileFormatVersion: 2
-guid: 085700b8fa9974e5daffffcb9f4c9c76
+guid: b105240b3dc3f26419d32a67fbe91b93
 ModelImporter:
   serializedVersion: 21202
-  internalIDToNameTable: []
+  internalIDToNameTable:
+  - first:
+      74: -7810290847237228458
+    second: Lever|LeverAction
   externalObjects: {}
   materials:
     materialImportMode: 2
@@ -32,7 +35,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 1
+    isReadable: 0
   meshes:
     lODScreenPercentages: []
     globalScale: 1
