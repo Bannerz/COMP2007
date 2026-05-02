@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,6 +17,8 @@ public class DoorController : MonoBehaviour, IInteractable, IInteractablePrompt
     [Header("Audio")]
     public AudioClip openingSound;
     public AudioClip closingSound;
+    public bool useCloseSoundAnimationEvent = false;
+    public float closeSoundDelay = 1f;
 
     [Header("Interaction")]
     public Transform player;
@@ -32,6 +35,7 @@ public class DoorController : MonoBehaviour, IInteractable, IInteractablePrompt
     private bool playerInRange;
     private float nextInteractTime;
     private Collider[] doorColliders;
+    private Coroutine closeSoundRoutine;
 
     private void Awake()
     {
@@ -131,7 +135,17 @@ public class DoorController : MonoBehaviour, IInteractable, IInteractablePrompt
         }
 
         PlayDoorAnimation(open);
-        PlaySound(open ? openingSound : closingSound);
+
+        if (open)
+        {
+            StopCloseSoundRoutine();
+            PlayOpeningSound();
+        }
+        else if (!useCloseSoundAnimationEvent)
+        {
+            StopCloseSoundRoutine();
+            closeSoundRoutine = StartCoroutine(PlayClosingSoundAfterDelay());
+        }
     }
 
     private void PlayDoorAnimation(bool open)
@@ -152,6 +166,32 @@ public class DoorController : MonoBehaviour, IInteractable, IInteractablePrompt
         if (audioSource != null && clip != null)
         {
             audioSource.PlayOneShot(clip);
+        }
+    }
+
+    public void PlayOpeningSound()
+    {
+        PlaySound(openingSound);
+    }
+
+    public void PlayClosingSound()
+    {
+        StopCloseSoundRoutine();
+        PlaySound(closingSound);
+    }
+
+    private IEnumerator PlayClosingSoundAfterDelay()
+    {
+        yield return new WaitForSeconds(closeSoundDelay);
+        PlayClosingSound();
+    }
+
+    private void StopCloseSoundRoutine()
+    {
+        if (closeSoundRoutine != null)
+        {
+            StopCoroutine(closeSoundRoutine);
+            closeSoundRoutine = null;
         }
     }
 
